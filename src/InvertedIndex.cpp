@@ -2,14 +2,15 @@
 #include <thread>
 #include <sstream>
 #include <algorithm>
+#include <mutex>
 
 void InvertedIndex::UpdateDocumentBase(std::vector<std::string> input_docs) {
     docs = input_docs;
     freq_dictionary.clear();
     
     std::vector<std::thread> threads;
-
-    auto processDocument = [this](size_t doc_id, const std::string& content) {
+    std::mutex mtx;
+    auto processDocument = [this, &mtx](size_t doc_id, const std::string& content) {
         std::map<std::string, size_t> local_word_count;
         std::istringstream iss(content);
         std::string word;
@@ -30,8 +31,17 @@ void InvertedIndex::UpdateDocumentBase(std::vector<std::string> input_docs) {
     }
 
     for (auto& t : threads) {
-        t.join();
+        if (t.joinable()) {
+            t.join();
+        }
     }
+
+    for (auto& [word, entries] : freq_dictionary) {
+        std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
+            return a.doc_id < b.doc_id;
+        });
+    }
+
 }
 
 std::vector<Entry> InvertedIndex::GetWordCount(const std::string& word) {
